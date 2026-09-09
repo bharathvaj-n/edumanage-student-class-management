@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profile rule: Teachers can read/write their own profile doc
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Batches rule: Teachers can read/write batches where teacher_id matches their UID
+    match /batches/{batchId} {
+      allow create: if request.auth != null && request.resource.data.teacher_id == request.auth.uid;
+      allow read, update, delete: if request.auth != null && (resource == null || resource.data.teacher_id == request.auth.uid);
+    }
+
+    // Students data rule: Teachers can read/write student records where teacher_id matches their UID
+    match /student_data/{studentId} {
+      allow create: if request.auth != null && request.resource.data.teacher_id == request.auth.uid;
+      allow read, update, delete: if request.auth != null && (resource == null || resource.data.teacher_id == request.auth.uid);
+    }
+
+    // Class sessions rule: Teachers can read/write class sessions where teacher_id matches their UID
+    match /class_sessions/{sessionId} {
+      allow create: if request.auth != null && request.resource.data.teacher_id == request.auth.uid;
+      allow read, update, delete: if request.auth != null && (resource == null || resource.data.teacher_id == request.auth.uid);
+    }
+
+    // Attendance data rule: Teachers can read/write attendance records where teacher_id matches their UID
+    match /attendance_data/{attendanceId} {
+      allow create: if request.auth != null && request.resource.data.teacher_id == request.auth.uid;
+      allow read, update, delete: if request.auth != null && (resource == null || resource.data.teacher_id == request.auth.uid);
+    }
+
+    // To-do list rule: Teachers can read/write to-do items where teacher_id matches their UID
+    match /todolist/{taskId} {
+      allow create: if request.auth != null && request.resource.data.teacher_id == request.auth.uid;
+      allow read, update, delete: if request.auth != null && (resource == null || resource.data.teacher_id == request.auth.uid);
+    }
+
+    // Class data (legacy fallback) rule
+    match /class_data/{classId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

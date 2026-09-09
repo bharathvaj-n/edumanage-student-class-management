@@ -1,44 +1,73 @@
 import React from 'react';
 import './App.css';
-import NavBar from './NavBar';
-import { BrowserRouter, Routes, Route} from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './Home';
 import Classdetails from './Classdetails';
-
 import Studentdetails from './Studentdetails';
-import {useState} from 'react';
+import Settings from './Settings';
 import Login from './Login';
+import Layout from './Layout';
+import { ToastProvider } from './ToastContext';
+import { AuthProvider, useAuth } from './AuthContext';
+import { Loader2 } from 'lucide-react';
 
-function App() {
-  // Load token from localStorage on app start
-  const savedToken = localStorage.getItem('token');
-  const [token, setToken] = useState(savedToken);
+function AppRoutes() {
+  const { currentUser, loadingAuth, logout } = useAuth();
 
-  // When user logs in, store token in localStorage too
-  const handleSetToken = (newToken) => {
-    setToken(newToken);
-    localStorage.setItem('token', newToken);
-  };
-
-  // If not logged in, show Login page
-  if (!token) {
-    return <Login setToken={handleSetToken} />;
+  if (loadingAuth) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F8FAFC',
+        color: '#64748B'
+      }}>
+        <Loader2 size={36} className="spin-icon" style={{ color: '#2563EB', marginBottom: '12px' }} />
+        <span style={{ fontSize: '15px', fontWeight: 600, color: '#0F172A' }}>Authenticating EduManage...</span>
+      </div>
+    );
   }
 
-return (
-	<div>
-    <BrowserRouter>
-    <NavBar />
-    <br/>
-    <Routes>
-					<Route exact path="/" element={<Home />} />
-					<Route exact path="/class" element={<Classdetails />} />
-					{/* <Route exact path="/mine" element={<Mydetails />} /> */}
-          <Route exact path="/student" element={<Studentdetails />} />
-				</Routes>
+  // Unauthenticated users or users with unverified email see Login / Verification page
+  const isAuth = Boolean(currentUser);
+  const isVerified = currentUser?.emailVerified;
+
+  if (!isAuth || !isVerified) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Layout onLogout={logout}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/class" element={<Classdetails />} />
+        <Route path="/student" element={<Studentdetails />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
         </BrowserRouter>
-  </div>
-);
+      </AuthProvider>
+    </ToastProvider>
+  );
 }
 
 export default App;
