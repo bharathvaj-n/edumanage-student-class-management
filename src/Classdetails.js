@@ -23,7 +23,6 @@ import {
   CheckSquare
 } from 'lucide-react';
 
-import { runStudentBatchMigration } from './migration';
 import { useAuth } from './AuthContext';
 
 const Classdetails = () => {
@@ -117,79 +116,14 @@ const Classdetails = () => {
     fetchBatches();
   }, [fetchBatches]);
 
-  // 2. When selectedBatch changes, query students by batch_id & load session history
-  useEffect(() => {
-    if (!selectedBatch) {
-      setBatchStudents([]);
-      setSessionHistory([]);
-      setCurrentSessionId(null);
-      setAttendanceMap({});
-      return;
-    }
-
-    const loadBatchData = async () => {
-      setLoadingStudents(true);
-      try {
-        const studentColRef = collection(db, "student_data");
-        const q = query(studentColRef, where("batch_id", "==", selectedBatch));
-        const snapshot = await getDocs(q);
-        let studentList = snapshot.docs.map(docItem => ({
-          id: docItem.id,
-          ...docItem.data()
-        }));
-
-        // Fallback for legacy records matching bid or course if batch_id not assigned
-        if (studentList.length === 0) {
-          const allSnap = await getDocs(studentColRef);
-          studentList = allSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(s => s.batch_id === selectedBatch || s.bid === selectedBatch);
-        }
-
-        setBatchStudents(studentList);
-
-        const initialMap = {};
-        studentList.forEach(s => {
-          initialMap[s.id] = 'Present';
-        });
-        setAttendanceMap(initialMap);
-        setCurrentSessionId(null);
-      } catch (err) {
-        console.error("Error loading batch students:", err);
-      } finally {
-        setLoadingStudents(false);
-      }
-
-      fetchBatchSessions(selectedBatch);
-    };
-
-    loadBatchData();
-  }, [selectedBatch]);
-
-  // Calculate next class number when history updates
-  useEffect(() => {
-    if (sessionHistory.length > 0) {
-      const maxClassNo = Math.max(...sessionHistory.map(s => Number(s.class_number) || 0));
-      setSessionForm(prev => ({
-        ...prev,
-        class_number: maxClassNo + 1
-      }));
-    } else {
-      setSessionForm(prev => ({
-        ...prev,
-        class_number: 1
-      }));
-    }
-  }, [sessionHistory]);
-
   // Fetch session history for batch
-  const fetchBatchSessions = async (batchId) => {
-    if (!batchId) return;
+  const fetchBatchSessions = useCallback(async (batchId) => {
+    if (!batchId || !currentUser?.uid) return;
     setLoadingHistory(true);
     try {
       // Query class_sessions collection
       const sessionsRef = collection(db, "class_sessions");
-      const q = query(sessionsRef, where("batch_id", "==", batchId));
+      const q = query(sessionsRef, where("teacher_id", "==", currentUser.uid), where("batch_id", "==", batchId));
       const snapshot = await getDocs(q);
 
       let sessions = snapshot.docs.map(docItem => ({
@@ -211,7 +145,7 @@ const Classdetails = () => {
       // Fallback: search existing class_data collection if class_sessions empty
       try {
         const legacyRef = collection(db, "class_data");
-        const qLegacy = query(legacyRef, where("batch_id", "==", batchId));
+        const qLegacy = query(legacyRef, where("teacher_id", "==", currentUser.uid), where("batch_id", "==", batchId));
         const legacySnap = await getDocs(qLegacy);
         const legacyList = legacySnap.docs.map(docItem => ({
           id: docItem.id,
@@ -224,7 +158,62 @@ const Classdetails = () => {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [currentUser?.uid]);
+
+  // 2. When selectedBatch changes, query students by batch_id & load session history
+  useEffect(() => {
+    if (!selectedBatch || !currentUser?.uid) {
+      setBatchStudents([]);
+      setLoadingStudents(false);
+      return;
+    }
+
+    const loadBatchData = async () => {
+      setLoadingStudents(true);
+      try {
+        const studentColRef = collection(db, "student_data");
+        const q = query(studentColRef, where("teacher_id", "==", currentUser.uid), where("batch_id", "==", selectedBatch));
+        const snapshot = await getDocs(q);
+        let studentList = snapshot.docs.map(docItem => ({
+          id: docItem.id,
+          ...docItem.data()
+        }));
+
+        setBatchStudents(studentList);
+
+        const initialMap = {};
+        studentList.forEach(s => {
+          initialMap[s.id] = 'Present';
+        });
+        setAttendanceMap(initialMap);
+        setCurrentSessionId(null);
+      } catch (err) {
+        console.error("Error loading batch students:", err);
+      } finally {
+        setLoadingStudents(false);
+      }
+
+      fetchBatchSessions(selectedBatch);
+    };
+
+    loadBatchData();
+  }, [selectedBatch, currentUser?.uid, fetchBatchSessions]);
+
+  // Calculate next class number when history updates
+  useEffect(() => {
+    if (sessionHistory.length > 0) {
+      const maxClassNo = Math.max(...sessionHistory.map(s => Number(s.class_number) || 0));
+      setSessionForm(prev => ({
+        ...prev,
+        class_number: maxClassNo + 1
+      }));
+    } else {
+      setSessionForm(prev => ({
+        ...prev,
+        class_number: 1
+      }));
+    }
+  }, [sessionHistory]);
 
   // Form input handler
   const handleFormChange = (e) => {
@@ -393,7 +382,7 @@ const Classdetails = () => {
     try {
       // Query attendance records for this session
       const attendanceRef = collection(db, "attendance_data");
-      const q = query(attendanceRef, where("session_id", "==", sessionItem.id));
+      const q = query(attendanceRef, where("teacher_id", "==", currentUser.uid), where("session_id", "==", sessionItem.id));
       const snap = await getDocs(q);
       
       let records = snap.docs.map(d => d.data());

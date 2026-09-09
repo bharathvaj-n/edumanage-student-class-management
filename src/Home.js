@@ -66,44 +66,28 @@ const Home = () => {
 			return;
 		}
 		try {
-			// 1. Fetch batches owned by current teacher
-			const batchQ = query(collection(db, "batches"), where("teacher_id", "==", currentUser.uid));
-			const batchSnap = await getDocs(batchQ);
-			const teacherBatchIds = batchSnap.docs.map(d => d.id);
+			// 1. Fetch students belonging to authenticated teacher
+			const studentQ = query(collection(db, "student_data"), where("teacher_id", "==", currentUser.uid));
+			const studentSnap = await getDocs(studentQ);
+			setTotalStudents(studentSnap.docs.length);
 
-			if (teacherBatchIds.length === 0) {
-				setTotalStudents(0);
-				setActiveClasses(0);
-				setAttendanceRate("0%");
-				return;
-			}
+			// 2. Fetch class sessions belonging to authenticated teacher
+			const sessionQ = query(collection(db, "class_sessions"), where("teacher_id", "==", currentUser.uid));
+			const sessionSnap = await getDocs(sessionQ);
+			setActiveClasses(sessionSnap.docs.length);
 
-			// 2. Fetch students belonging to teacher's batches
-			const studentSnap = await getDocs(collection(db, "student_data"));
-			const teacherStudents = studentSnap.docs.filter(d => teacherBatchIds.includes(d.data().batch_id));
-			setTotalStudents(teacherStudents.length);
+			// 3. Fetch attendance records for authenticated teacher
+			const attQ = query(collection(db, "attendance_data"), where("teacher_id", "==", currentUser.uid));
+			const attSnap = await getDocs(attQ);
 
-			// 3. Fetch class sessions belonging to teacher's batches or teacher_id
-			const sessionSnap = await getDocs(collection(db, "class_sessions"));
-			const teacherSessions = sessionSnap.docs.filter(d => 
-				d.data().teacher_id === currentUser.uid || teacherBatchIds.includes(d.data().batch_id)
-			);
-			setActiveClasses(teacherSessions.length);
-
-			// 4. Fetch attendance records for teacher's batches
-			const attSnap = await getDocs(collection(db, "attendance_data"));
-			const teacherAttendance = attSnap.docs.filter(d => 
-				d.data().teacher_id === currentUser.uid || teacherBatchIds.includes(d.data().batch_id)
-			);
-
-			if (teacherAttendance.length > 0) {
+			if (attSnap.docs.length > 0) {
 				let presentCount = 0;
-				teacherAttendance.forEach(d => {
+				attSnap.docs.forEach(d => {
 					if (d.data().status === 'Present') {
 						presentCount++;
 					}
 				});
-				const rate = Math.round((presentCount / teacherAttendance.length) * 100);
+				const rate = Math.round((presentCount / attSnap.docs.length) * 100);
 				setAttendanceRate(`${rate}%`);
 			} else {
 				setAttendanceRate("0%");

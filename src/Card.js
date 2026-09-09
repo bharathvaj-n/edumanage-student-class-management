@@ -1,9 +1,8 @@
 import React from 'react';
 import {db} from './firebase-config';
-import {collection, getDocs, addDoc,updateDoc,doc} from 'firebase/firestore';
+import {updateDoc, doc} from 'firebase/firestore';
 
 function Card(props){
-    const collectionref=collection(db,'todolist');
 
     const handleComplete= async (id)=>{
         var response=window.confirm("Are you sure that the task is complete? ")

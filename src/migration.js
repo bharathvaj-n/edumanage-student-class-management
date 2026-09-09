@@ -1,17 +1,18 @@
 import { db } from './firebase-config';
-import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Migration helper function.
  * Inspects 'student_data' collection and ensures every existing student has a valid `batch_id`.
  * Creates corresponding batch records in 'batches' if they do not exist yet.
  */
-export async function runStudentBatchMigration() {
+export async function runStudentBatchMigration(teacherId) {
+  if (!teacherId) return { migratedCount: 0 };
   try {
-    const batchSnap = await getDocs(collection(db, 'batches'));
+    const batchSnap = await getDocs(query(collection(db, 'batches'), where('teacher_id', '==', teacherId)));
     const existingBatches = batchSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const studentSnap = await getDocs(collection(db, 'student_data'));
+    const studentSnap = await getDocs(query(collection(db, 'student_data'), where('teacher_id', '==', teacherId)));
     const unassignedStudents = studentSnap.docs.filter(d => !d.data().batch_id);
 
     if (unassignedStudents.length === 0) {

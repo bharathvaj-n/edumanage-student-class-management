@@ -12,8 +12,6 @@ import {
   FileSpreadsheet, GraduationCap
 } from 'lucide-react';
 
-import { runStudentBatchMigration } from './migration';
-
 // ── View states ──────────────────────────────────────────────
 // 'batches'  → batch list (default)
 // 'students' → students inside a selected batch
@@ -68,8 +66,9 @@ function BatchManagement() {
       const batchSnap = await getDocs(q);
       const batchList = batchSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Fetch student counts per batch
-      const studentSnap = await getDocs(collection(db, 'student_data'));
+      // Fetch student counts per batch for current teacher
+      const studentQ = query(collection(db, 'student_data'), where('teacher_id', '==', currentUser.uid));
+      const studentSnap = await getDocs(studentQ);
       const allStudents = studentSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       const withCounts = batchList.map(b => ({
@@ -146,9 +145,14 @@ function BatchManagement() {
   };
 
   const fetchBatchStudents = async (batchId) => {
+    if (!currentUser?.uid || !batchId) return;
     setLoadingStudents(true);
     try {
-      const q = query(collection(db, 'student_data'), where('batch_id', '==', batchId));
+      const q = query(
+        collection(db, 'student_data'),
+        where('teacher_id', '==', currentUser.uid),
+        where('batch_id', '==', batchId)
+      );
       const snap = await getDocs(q);
       setBatchStudents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
